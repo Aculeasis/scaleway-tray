@@ -1,0 +1,54 @@
+language: go
+
+os:
+- linux
+- windows
+
+go:
+- 1.11.x
+
+git:
+  depth: 1
+
+addons:
+  apt:
+    packages:
+    - libgtk-3-dev
+    - libappindicator3-dev
+
+install:
+  - if [ "$TRAVIS_OS_NAME" == "windows" ]; then go get github.com/josephspurrier/goversioninfo/cmd/goversioninfo; fi
+  - go get ./src/
+  - ls -lh
+
+script:
+  - |
+    if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+      ./build.sh
+    else
+      powershell ./build.bat
+    fi
+  - ls -lh ./bin
+
+before_deploy:
+  - ARCH="$(uname -m)"
+  - mkdir dist
+  - |
+    if [ "$TRAVIS_OS_NAME" == "windows" ]; then
+      7z a ./dist/scaleway-tray_"$TRAVIS_TAG"_"$TRAVIS_OS_NAME"_"$ARCH".zip ./bin/*
+    else
+      tar cfJ ./dist/scaleway-tray_"$TRAVIS_TAG"_"$TRAVIS_OS_NAME"_"$ARCH".tar.xz ./bin/*
+    fi
+  - ls -lh dist/
+
+deploy:
+  provider: releases
+  api_key:
+    secure: rnrPxrr2KhVxLsrexNy9lh1TFDXA58j+rGCfQORisS0PIAysSw8mLqFNgom/nVuTzmkSo9bjvoiicYyyIwZ9YcMADNnehx6fLEG0WovdFicmrbkcYd2X8yQ3NS8skgetik82vhHv8r2P8D5jpJwPYfobWF1o/fpIhZf4E8gEoBzmEM8yZny+Vd9mLDLXGTOodq0IESR1RRas0St/IyVCNsWmnYrpwYpLdlurboKKxdSRr+XzFFDes8TdXuWozWg/9/nu3yggEObNk34A14xVskS1R0VLR6hig+YhMF0k1JumbG5XeSqcUSdMu1CwajKLTj0Xuwyqt26agd26ygadk8MuZa6TpyO1h0uqggUGg5KkxC612o4bbXVvr8HNxbHk4JDbkUwy1pDLSrwIjM6cg0srxD8hMci5ibdeBkz5NIDHGA5c8aeWR1uVUb/RAHeibk9wlyTii8hjZ0qV0pDaWGmqHmGCV9s1Z9BCy9BQJdBkERp/DgKBv3IMQuhf2proeSFvXktCQoE+IxGacoE0gSD0JK/rPOzanYEshLdBg6tJAX1VgWEL09vSU++3j3BtpL7lj9QotZvbFnJP3BnjXhpEZdCBmHe6D5hy0dlGbqT9GohMpN+xteSOlSCpgqb/uEWLaW1/m27/SQTDaPcq/yvgqsBMvvIVlOS+seJOIFY=
+  file_glob: true
+  file: dist/*
+  skip_cleanup: true
+  on:
+    repo: Aculeasis/scaleway-tray
+    tags: true
+    branch: master
