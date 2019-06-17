@@ -68,7 +68,7 @@ func onReady(wg *sync.WaitGroup) {
 	systray.SetTitle("Scaleway Tray")
 	systray.SetTooltip("Scaleway Tray")
 
-	stopper.Start(pinger.Destory, scaleway.Destory, gui.Destroy, stopMe)
+	stopper.Start(pinger.Quit, scaleway.Quit, gui.Quit, stopMe)
 	scaleway.Start(pinger.PingSignal)
 	gui.Start()
 	pinger.Start()

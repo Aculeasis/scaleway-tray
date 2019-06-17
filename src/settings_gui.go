@@ -37,8 +37,8 @@ func (g *GUI) Show() {
 	}
 }
 
-// Destroy gui
-func (g *GUI) Destroy() {
+// Quit ...
+func (g *GUI) Quit() {
 	ui.QueueMain(ui.Quit)
 }
 

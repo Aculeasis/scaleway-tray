@@ -303,7 +303,7 @@ func (sw *scalewayWorker) WriteToClipboard(idx int) (err error) {
 	return
 }
 
-func (sw *scalewayWorker) Destory() {
+func (sw *scalewayWorker) Quit() {
 	select {
 	case sw.stopChan <- syscall.SIGTERM:
 	default:

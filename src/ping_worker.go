@@ -130,7 +130,7 @@ func (pg *pingWorker) pingHost(host string, id serverID, oldState bool, oldPingM
 	}
 }
 
-func (pg *pingWorker) Destory() {
+func (pg *pingWorker) Quit() {
 	select {
 	case pg.stopChan <- syscall.SIGTERM:
 	default:
