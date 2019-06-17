@@ -1,5 +1,5 @@
 # Scaleway Tray
-
+[![Build Status](https://travis-ci.org/Aculeasis/scaleway-tray.svg?branch=master)](https://travis-ci.org/Aculeasis/scaleway-tray)
 Shows Scaleway instances info in the systray, using Scaleway API.
 
 ## Settings
