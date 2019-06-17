@@ -84,7 +84,9 @@ func onReady(wg *sync.WaitGroup) {
 			}
 			return
 		case num := <-menuChannel:
-			scaleway.WriteToClipboard(num)
+			if err := scaleway.WriteToClipboard(num); err != nil {
+				printErr("WriteToClipboard: %v", err)
+			}
 		}
 	}
 }

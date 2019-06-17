@@ -284,7 +284,7 @@ func (sw *scalewayWorker) getViewMask() string {
 	return mask
 }
 
-func (sw *scalewayWorker) WriteToClipboard(idx int) {
+func (sw *scalewayWorker) WriteToClipboard(idx int) (err error) {
 	sw.config.L.RLock()
 	mask := sw.config.D.CopyMask
 	sw.config.L.RUnlock()
@@ -295,11 +295,12 @@ func (sw *scalewayWorker) WriteToClipboard(idx int) {
 	if 0 <= idx && idx < count && count != 0 {
 		id := sw.servers.ServersList[idx]
 		if item, ok := sw.servers.D[id]; ok {
-			_ = clipboard.WriteAll(fillMask(mask, item))
+			err = clipboard.WriteAll(fillMask(mask, item))
 		} else {
 			panic(fmt.Errorf(""))
 		}
 	}
+	return
 }
 
 func (sw *scalewayWorker) Destory() {
