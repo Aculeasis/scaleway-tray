@@ -250,6 +250,11 @@ func (sw *scalewayWorker) parseNewServers(response *instance.ListServersResponse
 		serversList = append(serversList, id)
 		servers[id] = &serverInfo{item.ID, item.Name, "IPv4", "IPv6", item.State.String(),
 			"REGION", false, false, false, "PING"}
+		if old, ok := sw.servers.D[id]; ok {
+			servers[id].REGION = old.REGION
+			servers[id].pingState = old.pingState
+			servers[id].pingMS = old.pingMS
+		}
 
 		if item.PublicIP != nil {
 			servers[id].IPv4 = item.PublicIP.Address.String()
@@ -261,10 +266,6 @@ func (sw *scalewayWorker) parseNewServers(response *instance.ListServersResponse
 		}
 		if item.Location != nil {
 			servers[id].REGION = item.Location.ZoneID
-		}
-		if old, ok := sw.servers.D[id]; ok {
-			servers[id].pingState = old.pingState
-			servers[id].pingMS = old.pingMS
 		}
 	}
 	oldSize := len(sw.servers.ServersList)

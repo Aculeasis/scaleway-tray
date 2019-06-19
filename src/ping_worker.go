@@ -111,19 +111,19 @@ func (pg *pingWorker) pingHost(host string, id serverID, oldState bool, oldPingM
 		pinger.SetPrivileged(true)
 	}
 	pinger.Count = 1
+	pinger.Timeout = time.Second * 5
 	pinger.Run()
 	statistics := pinger.Statistics()
 	newState := statistics.PacketsRecv > 0
-	avgRtt := statistics.AvgRtt
-	newPingMS := strconv.FormatInt((avgRtt / time.Millisecond).Nanoseconds(), 10)
-	if oldState == newState && (newPingMS == oldPingMS || avgRtt == 0) {
+	newPingMS := strconv.FormatInt((statistics.AvgRtt / time.Millisecond).Nanoseconds(), 10)
+	if oldState == newState && (newPingMS == oldPingMS || !newState) {
 		return
 	}
 	pg.servers.L.Lock()
 	defer pg.servers.L.Unlock()
 	if item, ok := pg.servers.D[id]; ok {
 		item.pingState = newState
-		if avgRtt != 0 {
+		if newState {
 			item.pingMS = newPingMS
 		}
 		pg.scalewayCFG(scalewayDrawSignal)
