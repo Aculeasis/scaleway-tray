@@ -10,7 +10,7 @@ type signalHandler struct {
 	chain chan os.Signal
 }
 
-func makeSignalHandler() *signalHandler {
+func newSignalHandler() *signalHandler {
 	sh := signalHandler{}
 	sh.chain = make(chan os.Signal, 5)
 	signal.Notify(sh.chain, syscall.SIGINT, syscall.SIGTERM)

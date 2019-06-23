@@ -33,7 +33,7 @@ type settingsStorage struct {
 func (s *settingsStorage) ResetSettings() {
 	s.L.Lock()
 	defer s.L.Unlock()
-	*s.D = *makeDefaultSettingsData()
+	*s.D = *newDefaultSettingsData()
 }
 
 func (s *settingsStorage) LoadFrom(path string) (err error) {
@@ -63,15 +63,15 @@ func (s *settingsStorage) Save() error {
 }
 
 // load from settings.json or make default
-func makeSettingsStorage() *settingsStorage {
-	data := settingsStorage{D: makeDefaultSettingsData()}
+func newSettingsStorage() *settingsStorage {
+	data := settingsStorage{D: newDefaultSettingsData()}
 	if cfgPath := xdg.New("", appName).QueryConfig(cfgName); cfgPath != "" {
 		_ = data.LoadFrom(cfgPath)
 	}
 	return &data
 }
 
-func makeDefaultSettingsData() *settingsData {
+func newDefaultSettingsData() *settingsData {
 	result := settingsData{}
 	result.ViewMask = "{ALIVE} {FLAG} {NAME} {IPvX} {STATE}"
 	result.CopyMask = "ssh root@{IPv4}"

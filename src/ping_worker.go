@@ -20,7 +20,7 @@ type pingWorker struct {
 	scalewayCFG   func(cfgActionID)
 }
 
-func makePingWorker(data *settingsStorage, servers *serversInfo, scalewayCFG func(cfgActionID)) *pingWorker {
+func newPingWorker(data *settingsStorage, servers *serversInfo, scalewayCFG func(cfgActionID)) *pingWorker {
 	pg := pingWorker{}
 
 	pg.stopChan = make(chan os.Signal, 1)

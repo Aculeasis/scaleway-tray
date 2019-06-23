@@ -3,25 +3,25 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"sync"
 
 	"github.com/andlabs/ui"
-	"github.com/getlantern/systray"
 )
 
-// GUI ...
-type GUI struct {
+type settingsGUI struct {
 	config *settingsStorage
 	wait   Wait
 	// call when "Quit" clicked
 	quitCallback     func()
 	scalewayCallback func(cfgActionID)
 	pingCallback     func()
+	stopWait         sync.WaitGroup
 	// unsafe
 	_setter func()
 }
 
-func makeGUI(config *settingsStorage, scalewayCallback func(cfgActionID), pingCallback func(), quitCallback func()) *GUI {
-	g := GUI{}
+func newSettingsGUI(config *settingsStorage, scalewayCallback func(cfgActionID), pingCallback func(), quitCallback func()) *settingsGUI {
+	g := settingsGUI{}
 	g.config = config
 	g.scalewayCallback = scalewayCallback
 	g.pingCallback = pingCallback
@@ -31,41 +31,46 @@ func makeGUI(config *settingsStorage, scalewayCallback func(cfgActionID), pingCa
 }
 
 // Show Make and show gui.
-func (g *GUI) Show() {
+func (g *settingsGUI) Show() {
 	if g.wait.IfSet() {
 		ui.QueueMain(g.showGUI)
 	}
 }
 
 // Quit ...
-func (g *GUI) Quit() {
+func (g *settingsGUI) Quit() {
 	ui.QueueMain(ui.Quit)
 }
 
 var mainwin *ui.Window
 
 // Set gui values from settingsData
-func (g *GUI) callSetter() {
+func (g *settingsGUI) callSetter() {
 	if g._setter != nil {
 		g._setter()
 	}
 }
 
 // Call where mainwin is destroy - unlink all gui method and mark gui as "Closed"
-func (g *GUI) clearALL() {
+func (g *settingsGUI) clearALL() {
 	g._setter = nil
 	g.wait.Clear()
 }
 
 //Start thread
-func (g *GUI) Start() {
+func (g *settingsGUI) Start() {
 	go g.loop()
 }
 
+// Wait goroutine
+func (g *settingsGUI) Wait() {
+	g.stopWait.Wait()
+}
+
 // GUI loop. Run on goroutine
-func (g *GUI) loop() {
-	// WARNING: If systray.Quit() call before ui.Quit finished - systray.Run never be stopped (Linux bug)
-	defer systray.Quit()
+func (g *settingsGUI) loop() {
+	g.stopWait.Add(1)
+	defer g.stopWait.Done()
 	ui.OnShouldQuit(func() bool {
 		return true
 	})
@@ -79,7 +84,7 @@ func (g *GUI) loop() {
 }
 
 // Make and Show gui
-func (g *GUI) showGUI() {
+func (g *settingsGUI) showGUI() {
 	mainwin = ui.NewWindow(appName, 64, 48, true)
 	mainwin.SetMargined(true)
 	mainwin.OnClosing(func(*ui.Window) bool {
@@ -104,7 +109,7 @@ func (g *GUI) showGUI() {
 	mainwin.Show()
 }
 
-func (g *GUI) makeTabSettings() ui.Control {
+func (g *settingsGUI) makeTabSettings() ui.Control {
 	vbox := ui.NewVerticalBox()
 	form := ui.NewForm()
 	vbox.SetPadded(true)
@@ -193,7 +198,7 @@ func (g *GUI) makeTabSettings() ui.Control {
 	return vbox
 }
 
-func (g *GUI) makeButtonsSettings() ui.Control {
+func (g *settingsGUI) makeButtonsSettings() ui.Control {
 	vbox := ui.NewVerticalBox()
 	grid := ui.NewGrid()
 	vbox.Append(grid, false)
@@ -245,7 +250,7 @@ func (g *GUI) makeButtonsSettings() ui.Control {
 	return vbox
 }
 
-func (g *GUI) makeInfoSettings() ui.Control {
+func (g *settingsGUI) makeInfoSettings() ui.Control {
 	vbox := ui.NewVerticalBox()
 	vbox.SetPadded(true)
 	entry := ui.NewForm()

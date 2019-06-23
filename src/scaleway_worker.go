@@ -10,18 +10,6 @@ import (
 	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	"github.com/scaleway/scaleway-sdk-go/scw"
 	"github.com/scaleway/scaleway-sdk-go/utils"
-
-	"github.com/atotto/clipboard"
-	"github.com/getlantern/systray"
-)
-
-// UTF emoji
-const (
-	flagNL  = "\U0001F1F3\U0001F1F1" //Netherlands
-	flagFR  = "\U0001F1EB\U0001F1E7" //France
-	flagUG  = "\U0001F1FA\U0001F1EC" //Uganda
-	pingOK  = "\U00002705"
-	pingERR = "\U0000274C"
 )
 
 type cfgActionID uint8
@@ -47,42 +35,6 @@ type serverInfo struct {
 	pingMS    string
 }
 
-func fillMask(mask string, data *serverInfo) string {
-	mask = sReplaceAll(mask, "{ID}", data.ID)
-	mask = sReplaceAll(mask, "{NAME}", data.NAME)
-	mask = sReplaceAll(mask, "{IPv4}", data.IPv4)
-	mask = sReplaceAll(mask, "{IPv6}", data.IPv6)
-	mask = sReplaceAll(mask, "{STATE}", data.STATE)
-	mask = sReplaceAll(mask, "{REGION}", data.REGION)
-	mask = sReplaceAll(mask, "{PING}", data.pingMS)
-	if data.isIPv4 {
-		mask = sReplaceAll(mask, "{IPvX}", data.IPv4)
-	} else if data.isIPv6 {
-		mask = sReplaceAll(mask, "{IPvX}", data.IPv6)
-	} else {
-		mask = sReplaceAll(mask, "{IPvX}", "IPvX")
-	}
-	return mask
-}
-
-func fillView(mask string, data *serverInfo) string {
-	mask = fillMask(mask, data)
-	switch data.REGION {
-	case "par1":
-		mask = sReplaceAll(mask, "{FLAG}", flagFR)
-	case "ams1":
-		mask = sReplaceAll(mask, "{FLAG}", flagNL)
-	default:
-		mask = sReplaceAll(mask, "{FLAG}", flagUG)
-	}
-	if data.pingState {
-		mask = sReplaceAll(mask, "{ALIVE}", pingOK)
-	} else {
-		mask = sReplaceAll(mask, "{ALIVE}", pingERR)
-	}
-	return mask
-}
-
 type serversInfo struct {
 	D map[serverID]*serverInfo
 	L sync.RWMutex
@@ -93,12 +45,12 @@ type serversInfo struct {
 type scalewayWorker struct {
 	servers     *serversInfo
 	config      *settingsStorage
-	menu        *[]*systray.MenuItem
+	menu        *menuPool
 	stopChan    chan os.Signal
 	signalsChan chan cfgActionID
 }
 
-func makeScalewayWorker(config *settingsStorage, menu *[]*systray.MenuItem) *scalewayWorker {
+func newScalewayWorker(config *settingsStorage, menu *menuPool) *scalewayWorker {
 	sw := scalewayWorker{}
 	sw.servers = &serversInfo{D: map[serverID]*serverInfo{}, ServersList: []serverID{}}
 	sw.stopChan = make(chan os.Signal, 1)
@@ -184,26 +136,22 @@ func (sw *scalewayWorker) loop(firstRunCallback func()) {
 
 func (sw *scalewayWorker) updateMenu(mask string, menuChange bool) {
 	if menuChange {
-		for _, item := range *sw.menu {
-			item.Hide()
-		}
+		sw.menu.HideAll()
 	}
 	sw.servers.L.RLock()
 	defer sw.servers.L.RUnlock()
 	size := len(sw.servers.ServersList)
-	mSize := len(*sw.menu)
-	if size > mSize {
-		size = mSize
+	if size > sw.menu.GetSize() {
+		size = sw.menu.GetSize()
 	}
 	for idx := 0; idx < size; idx++ {
 		id := sw.servers.ServersList[idx]
 		if item, ok := sw.servers.D[id]; ok {
-			(*sw.menu)[idx].SetTitle(fillView(mask, item))
-			if menuChange {
-				(*sw.menu)[idx].Show()
+			if ok = sw.menu.UpdateTitle(idx, fillView(mask, item), menuChange); !ok {
+				panic(fmt.Errorf("menuPool: Corrupted"))
 			}
 		} else {
-			panic(fmt.Errorf(""))
+			panic(fmt.Errorf("serversInfo: Corrupted"))
 		}
 	}
 
@@ -240,8 +188,8 @@ func (sw *scalewayWorker) updateScaleway() {
 func (sw *scalewayWorker) parseNewServers(response *instance.ListServersResponse) {
 	servers := map[serverID]*serverInfo{}
 	serversList := []serverID{}
+
 	sw.servers.L.RLock()
-	sw.servers.ServersList = nil
 	for _, item := range response.Servers {
 		id := serverID(item.ID)
 		if _, ok := servers[id]; ok {
@@ -268,14 +216,15 @@ func (sw *scalewayWorker) parseNewServers(response *instance.ListServersResponse
 			servers[id].REGION = item.Location.ZoneID
 		}
 	}
-	oldSize := len(sw.servers.ServersList)
-	newSize := len(serversList)
 	sw.servers.L.RUnlock()
+
 	sw.servers.L.Lock()
+	sizeChange := len(sw.servers.ServersList) != len(serversList)
 	sw.servers.D = servers
 	sw.servers.ServersList = serversList
 	sw.servers.L.Unlock()
-	sw.updateMenu(sw.getViewMask(), oldSize != newSize)
+
+	sw.updateMenu(sw.getViewMask(), sizeChange)
 }
 
 func (sw *scalewayWorker) getViewMask() string {
@@ -283,25 +232,6 @@ func (sw *scalewayWorker) getViewMask() string {
 	mask := sw.config.D.ViewMask
 	sw.config.L.RUnlock()
 	return mask
-}
-
-func (sw *scalewayWorker) WriteToClipboard(idx int) (err error) {
-	sw.config.L.RLock()
-	mask := sw.config.D.CopyMask
-	sw.config.L.RUnlock()
-
-	sw.servers.L.RLock()
-	defer sw.servers.L.RUnlock()
-	count := len(sw.servers.ServersList)
-	if 0 <= idx && idx < count && count != 0 {
-		id := sw.servers.ServersList[idx]
-		if item, ok := sw.servers.D[id]; ok {
-			err = clipboard.WriteAll(fillMask(mask, item))
-		} else {
-			panic(fmt.Errorf(""))
-		}
-	}
-	return
 }
 
 func (sw *scalewayWorker) Quit() {

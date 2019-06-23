@@ -3,9 +3,6 @@
 package main
 
 import (
-	"strconv"
-	"sync"
-
 	"github.com/getlantern/systray"
 )
 
@@ -21,31 +18,11 @@ var GitCommit string
 var Version = "0.0.0"
 
 func main() {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	systray.Run(func() {
-		onReady(&wg)
-	}, nil)
-	wg.Wait()
+	systray.Run(onReady, nil)
 }
 
-func makeMenuPool(size int) (*[]*systray.MenuItem, <-chan int) {
-	pool := make([]*systray.MenuItem, size)
-	channel := make(chan int, 1)
-	for idx := range pool {
-		pool[idx] = systray.AddMenuItem(strconv.Itoa(idx), "")
-		pool[idx].Hide()
-		go func(id int, ch chan struct{}) {
-			for range ch {
-				channel <- id
-			}
-		}(idx, pool[idx].ClickedCh)
-	}
-	return &pool, channel
-}
-
-func onReady(wg *sync.WaitGroup) {
-	defer wg.Done()
+func onReady() {
+	defer systray.Quit()
 	stopChan := make(chan struct{}, 1)
 	stopMe := func() {
 		select {
@@ -53,16 +30,16 @@ func onReady(wg *sync.WaitGroup) {
 		default:
 		}
 	}
-	menuPool, menuChannel := makeMenuPool(20)
+	menu := newMenuPool(20)
 	systray.AddSeparator()
 	mSettings := systray.AddMenuItem("Settings", "Settings")
 	mQuit := systray.AddMenuItem("Quit", "Quit")
 
-	stopper := makeSignalHandler()
-	settings := makeSettingsStorage()
-	scaleway := makeScalewayWorker(settings, menuPool)
-	pinger := makePingWorker(settings, scaleway.servers, scaleway.CFGChange)
-	gui := makeGUI(settings, scaleway.CFGChange, pinger.CFGChange, stopper.Send)
+	stopper := newSignalHandler()
+	settings := newSettingsStorage()
+	scaleway := newScalewayWorker(settings, menu)
+	pinger := newPingWorker(settings, scaleway.servers, scaleway.CFGChange)
+	gui := newSettingsGUI(settings, scaleway.CFGChange, pinger.CFGChange, stopper.Send)
 
 	systray.SetIcon(iconData)
 	systray.SetTitle("Scaleway Tray")
@@ -82,9 +59,11 @@ func onReady(wg *sync.WaitGroup) {
 			if err := settings.Save(); err != nil {
 				printErr("settings.save: %v", err)
 			}
+			// WARNING: If systray.Quit() call before ui.Quit finished - systray.Run never be stopped (in Linux)
+			gui.Wait()
 			return
-		case num := <-menuChannel:
-			if err := scaleway.WriteToClipboard(num); err != nil {
+		case num := <-menu.WaitSignal():
+			if err := writeToClipboard(num, settings, scaleway.servers); err != nil {
 				printErr("WriteToClipboard: %v", err)
 			}
 		}
